@@ -1,0 +1,1664 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TWOZERO — Animator</title>
+<style>
+:root{
+  --void:#120101;
+  --pit:#1D0303;
+  --blood:#3B0000;
+  --rust:#5A1010;
+  --siren:#DB0000;
+  --bone:#F6EAE6;
+  --dust:#A87873;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--void);
+  color:var(--bone);
+  font-family:var(--mono);
+  font-size:12px;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+
+/* ---------- shell ---------- */
+.shell{
+  min-height:100%;
+  display:grid;
+  grid-template-rows:repeat(4,auto);
+  /* неявная колонка была auto и растягивалась под содержимое таймлайна,
+     утаскивая всю страницу вбок; minmax(0,1fr) прибивает её к ширине оболочки */
+  grid-template-columns:minmax(0,1fr);
+  align-content:start;
+  max-width:1120px;
+  margin:0 auto;
+  padding:16px;
+  gap:14px;
+}
+/* без min-width:0 grid/flex-элемент не сжимается меньше своего содержимого,
+   и внутренний overflow-x никогда не срабатывает */
+.shell > *, .work > *, .side > *{min-width:0}
+
+/* ---------- header ---------- */
+.bar{
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap;
+  border-bottom:1px solid var(--blood);
+  padding-bottom:14px;
+}
+.mark{display:flex;align-items:center;gap:12px}
+.mark canvas{width:44px;height:44px;background:var(--siren)}
+.markText b{
+  display:block;font-family:var(--sans);font-weight:800;font-size:21px;
+  letter-spacing:-.035em;line-height:1;color:var(--bone);
+}
+.markText span{
+  display:block;color:var(--siren);font-size:10px;letter-spacing:.34em;
+  text-transform:uppercase;margin-top:4px;
+}
+.clipbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.clipbar > label{color:var(--dust);letter-spacing:.16em;text-transform:uppercase;font-size:10px;margin-right:2px}
+.grow{flex:1}
+
+select, input[type=text], input[type=number]{
+  font-family:var(--mono);font-size:12px;
+  background:var(--pit);color:var(--bone);
+  border:1px solid var(--rust);border-radius:0;
+  padding:6px 8px;outline:none;
+}
+select:focus-visible, input:focus-visible, button:focus-visible{outline:2px solid var(--siren);outline-offset:1px}
+input[type=number]{width:56px;text-align:center}
+
+button{
+  font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  background:transparent;color:var(--dust);
+  border:1px solid var(--rust);border-radius:0;
+  padding:7px 10px;cursor:pointer;
+  transition:color .12s, border-color .12s, background .12s;
+}
+button:hover{color:var(--bone);border-color:var(--siren)}
+button.on{background:var(--siren);border-color:var(--siren);color:#fff}
+button.solid{background:var(--siren);border-color:var(--siren);color:#fff}
+button.solid:hover{background:#ff1a00;border-color:#ff1a00}
+button.ghost{border-color:transparent}
+button:disabled{opacity:.32;cursor:default}
+button:disabled:hover{color:var(--dust);border-color:var(--rust)}
+
+/* ---------- main grid ---------- */
+.work{display:grid;grid-template-columns:minmax(0,1fr) 268px;gap:14px;align-items:start}
+.side{display:grid;gap:14px;align-content:start}
+@media (max-width:860px){ .work{grid-template-columns:minmax(0,1fr)} }
+
+.card{border:1px solid var(--blood);background:var(--pit);min-width:0}
+.cardHead{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:8px 10px;border-bottom:1px solid var(--blood);
+  color:var(--dust);font-size:10px;letter-spacing:.2em;text-transform:uppercase;
+}
+.cardHead .grow{flex:1}
+.cardBody{padding:12px}
+
+/* ---------- stage ---------- */
+.field{
+  background:var(--siren);
+  display:grid;place-items:center;
+  padding:20px;
+  position:relative;
+}
+.field.alpha{
+  background:
+    linear-gradient(45deg,#2a0505 25%,transparent 25%,transparent 75%,#2a0505 75%),
+    linear-gradient(45deg,#2a0505 25%,transparent 25%,transparent 75%,#2a0505 75%) 8px 8px,
+    #1a0303;
+  background-size:16px 16px;
+}
+#stage{width:100%;max-width:352px;height:auto;cursor:crosshair;touch-action:none}
+.stripe{
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:10px;border-top:1px solid var(--blood);
+}
+.chip{display:flex;align-items:center;gap:7px}
+.chip canvas{background:var(--siren);border:1px solid var(--blood)}
+.chip.alpha canvas{background:#1a0303}
+.chip span{color:var(--dust);font-size:9px;letter-spacing:.14em}
+#one{width:16px;height:16px}
+#four{width:64px;height:64px}
+.hint{color:var(--dust);font-size:10px;letter-spacing:.06em}
+.hint b{color:var(--bone);font-weight:400}
+
+.transport{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px;border-top:1px solid var(--blood)}
+#play{min-width:96px}
+.transport label{color:var(--dust);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+
+/* ---------- pose panel ---------- */
+.row{display:grid;grid-template-columns:52px 1fr;align-items:center;gap:10px;margin-bottom:8px}
+.row > span{color:var(--dust);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+.seg{display:flex}
+.seg button{flex:1;border-right-width:0}
+.seg button:last-child{border-right-width:1px}
+.seg button.on + button{border-left-color:var(--siren)}
+
+.rule{height:1px;background:var(--blood);margin:14px 0}
+.subhead{color:var(--dust);font-size:9px;letter-spacing:.22em;text-transform:uppercase;margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.subhead .grow{flex:1}
+
+.eyes{display:flex;gap:14px;align-items:flex-start}
+.eyeBlock{display:flex;flex-direction:column;gap:6px;align-items:center}
+.eyeBlock > em{color:var(--dust);font-style:normal;font-size:9px;letter-spacing:.16em;text-transform:uppercase}
+.pad{display:grid;grid-template-columns:1fr 1fr;gap:2px;width:62px;height:62px;background:var(--blood);padding:2px}
+.pad button{padding:0;border:1px solid transparent;background:#2a0404;position:relative}
+.pad button:hover{background:#4a0808;border-color:var(--rust)}
+.pad button.on{background:var(--siren);border-color:var(--siren)}
+.eyeOff{display:grid;grid-template-columns:1fr 1fr;gap:2px;width:62px}
+.eyeOff button{padding:5px 1px;font-size:9px;letter-spacing:.02em}
+
+.nudge{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;width:96px}
+.nudge button{padding:6px 0}
+.nudge .mid{color:var(--bone);font-size:9px;letter-spacing:0;text-transform:none}
+
+.pal{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pal label{display:flex;align-items:center;gap:6px;color:var(--dust);font-size:10px;letter-spacing:.1em}
+.pal input[type=color]{
+  width:32px;height:26px;padding:0;cursor:pointer;
+  background:transparent;border:1px solid var(--rust);
+  -webkit-appearance:none;appearance:none;
+}
+.pal input[type=color]::-webkit-color-swatch-wrapper{padding:2px}
+.pal input[type=color]::-webkit-color-swatch{border:0}
+
+/* ---------- timeline ---------- */
+.strip{
+  display:flex;gap:6px;padding:12px 10px;
+  min-width:0;overflow-x:auto;overflow-y:hidden;
+  position:relative;                 /* offsetLeft кадра считается от полосы */
+  overscroll-behavior-x:contain;
+  scrollbar-width:thin;scrollbar-color:var(--rust) var(--void);
+}
+.strip::-webkit-scrollbar{height:9px}
+.strip::-webkit-scrollbar-track{background:var(--void)}
+.strip::-webkit-scrollbar-thumb{background:var(--rust)}
+.strip::-webkit-scrollbar-thumb:hover{background:var(--siren)}
+.cel{
+  position:relative;flex:0 0 auto;
+  border:1px solid var(--rust);background:var(--siren);
+  padding:0;cursor:pointer;line-height:0;
+}
+.cel canvas{width:56px;height:56px}
+.cel:hover{border-color:var(--bone)}
+.cel.sel{outline:2px solid var(--bone);outline-offset:1px;border-color:var(--bone)}
+.cel i{
+  position:absolute;left:0;top:0;
+  background:var(--blood);color:var(--bone);
+  font-style:normal;font-size:9px;line-height:1;padding:2px 3px;
+}
+.cel u{
+  position:absolute;right:0;bottom:0;
+  background:var(--blood);color:var(--bone);
+  text-decoration:none;font-size:9px;line-height:1;padding:2px 3px;
+}
+.cel.drag{opacity:.35}
+.strip .add{flex:0 0 auto;width:56px;height:58px;color:var(--dust);font-size:18px;letter-spacing:0}
+
+/* ---------- playground ---------- */
+.pg{position:fixed;inset:0;z-index:40;background:var(--void);display:grid;grid-template-rows:auto 1fr}
+.pg[hidden]{display:none}
+.pgBar{
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:11px 16px;border-bottom:1px solid var(--blood);
+}
+.pgBar > b{
+  font-family:var(--sans);font-weight:800;font-size:13px;
+  letter-spacing:.2em;color:var(--siren);
+}
+.pgBar label{display:flex;align-items:center;gap:5px;color:var(--dust);font-size:10px;letter-spacing:.1em}
+.pgBar select{padding:4px 6px;font-size:11px}
+.pgKeys{color:var(--dust);font-size:10px;letter-spacing:.04em}
+.pgKeys kbd{font-family:var(--mono);color:var(--bone);border:1px solid var(--rust);padding:1px 4px;margin:0 4px 0 0}
+.pgState{
+  color:var(--bone);font-size:10px;letter-spacing:.16em;text-transform:uppercase;
+  border:1px solid var(--rust);padding:5px 9px;min-width:150px;
+}
+.pgField{display:grid;place-items:center;overflow:hidden;padding:16px}
+#pgCanvas{outline:1px solid var(--rust)}   /* пол того же цвета, что --blood: рамка бы слилась */
+
+/* ---------- export dialog ---------- */
+dialog{
+  border:1px solid var(--siren);background:var(--pit);color:var(--bone);
+  padding:0;max-width:min(760px,94vw);width:100%;
+}
+dialog::backdrop{background:rgba(10,0,0,.82)}
+.tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--blood)}
+.tabs button{border:0;border-bottom:2px solid transparent;padding:11px 13px}
+.tabs button.on{background:transparent;color:var(--bone);border-bottom-color:var(--siren)}
+.pane{padding:14px}
+.pane p{color:var(--dust);margin:0 0 11px;line-height:1.6;font-size:11px}
+.pane p b{color:var(--bone);font-weight:400}
+textarea{
+  width:100%;height:210px;resize:vertical;
+  font-family:var(--mono);font-size:11px;line-height:1.45;
+  background:var(--void);color:var(--bone);border:1px solid var(--blood);padding:10px;outline:none;
+}
+.acts{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px;align-items:center}
+.preview{background:var(--siren);padding:14px;display:grid;place-items:center;margin-bottom:11px}
+.preview img{width:128px;height:128px;image-rendering:pixelated}
+
+/* ---------- footer ---------- */
+.keys{
+  display:flex;gap:16px;flex-wrap:wrap;
+  color:var(--dust);font-size:10px;letter-spacing:.04em;
+  border-top:1px solid var(--blood);padding-top:12px;
+}
+.keys kbd{
+  font-family:var(--mono);color:var(--bone);
+  border:1px solid var(--rust);padding:1px 4px;margin-right:4px;
+}
+.toast{
+  position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(14px);
+  background:var(--siren);color:#fff;padding:9px 15px;
+  font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  opacity:0;pointer-events:none;transition:opacity .18s, transform .18s;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <header class="bar">
+    <div class="mark">
+      <canvas id="mark" width="16" height="16"></canvas>
+      <div class="markText"><b>TWOZERO</b><span>animator</span></div>
+    </div>
+
+    <div class="clipbar">
+      <label for="clipSel">clip</label>
+      <select id="clipSel"></select>
+      <button data-act="clip-new">new</button>
+      <button data-act="clip-dup">copy</button>
+      <button data-act="clip-ren">rename</button>
+      <button data-act="clip-del">delete</button>
+    </div>
+
+    <div class="grow"></div>
+    <button data-act="reset" title="Вернуть встроенную библиотеку клипов">reset</button>
+    <button data-act="pg-open" title="Погонять персонажа по стрелочкам">Playground</button>
+    <button class="solid" data-act="export">Export</button>
+  </header>
+
+  <main class="work">
+
+    <section class="card">
+      <div class="cardHead">
+        <span>stage</span>
+        <div class="grow"></div>
+        <span id="stageInfo"></span>
+      </div>
+
+      <div class="field" id="field">
+        <canvas id="stage" width="16" height="16"></canvas>
+      </div>
+
+      <div class="stripe">
+        <div class="chip"><canvas id="one" width="16" height="16"></canvas><span>1:1</span></div>
+        <div class="chip"><canvas id="four" width="16" height="16"></canvas><span>4×</span></div>
+        <div class="hint" id="hint">кликай прямо по спрайту: <b>рука · нога · зрачок</b></div>
+      </div>
+
+      <div class="transport">
+        <button id="play" class="solid">▶ play</button>
+        <label for="fps">fps</label>
+        <input type="number" id="fps" min="1" max="60" step="1">
+        <button data-act="loop">loop</button>
+        <button data-act="onion">onion</button>
+        <button data-act="grid">grid</button>
+        <button data-act="alpha">alpha bg</button>
+      </div>
+    </section>
+
+    <div class="side">
+    <section class="card">
+      <div class="cardHead"><span>pose</span><div class="grow"></div><span id="frameInfo"></span></div>
+      <div class="cardBody">
+
+        <div class="row"><span>arm L</span><div class="seg" data-part="armL"></div></div>
+        <div class="row"><span>arm R</span><div class="seg" data-part="armR"></div></div>
+        <div class="row"><span>leg L</span><div class="seg" data-part="legL"></div></div>
+        <div class="row"><span>leg R</span><div class="seg" data-part="legR"></div></div>
+
+        <div class="rule"></div>
+
+        <div class="subhead"><span>gaze</span><div class="grow"></div>
+          <button data-act="link" style="padding:4px 7px">link</button>
+        </div>
+        <div class="eyes">
+          <div class="eyeBlock"><em>L</em>
+            <div class="pad" data-eye="eyeL"></div>
+            <div class="eyeOff" data-eye="eyeL"></div>
+          </div>
+          <div class="eyeBlock"><em>R</em>
+            <div class="pad" data-eye="eyeR"></div>
+            <div class="eyeOff" data-eye="eyeR"></div>
+          </div>
+          <div class="eyeBlock" style="align-items:flex-start;gap:5px">
+            <em>shift</em>
+            <div class="nudge" id="nudge"></div>
+            <button data-act="flip" style="width:96px">flip ⇄</button>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cardHead"><span>palette</span></div>
+      <div class="cardBody">
+        <div class="pal">
+          <label><input type="color" id="colBg"><span>фон</span></label>
+          <label><input type="color" id="colFg"><span>спрайт</span></label>
+          <button data-act="pal-reset">исходная</button>
+        </div>
+      </div>
+    </section>
+    </div>
+
+  </main>
+
+  <section class="card">
+    <div class="cardHead">
+      <span>timeline</span>
+      <div class="grow"></div>
+      <button class="ghost" data-act="f-add">+ frame</button>
+      <button class="ghost" data-act="f-dup">duplicate</button>
+      <button class="ghost" data-act="f-del">delete</button>
+      <button class="ghost" data-act="f-left">◀ move</button>
+      <button class="ghost" data-act="f-right">move ▶</button>
+      <button class="ghost" data-act="f-rev">reverse</button>
+      <button class="ghost" data-act="f-ping">ping-pong</button>
+    </div>
+    <div class="strip" id="strip"></div>
+  </section>
+
+  <footer class="keys">
+    <span><kbd>space</kbd>play</span>
+    <span><kbd>← →</kbd>кадр</span>
+    <span><kbd>1 2 3 4</kbd>рука L · рука R · нога L · нога R</span>
+    <span><kbd>W A S D</kbd>взгляд</span>
+    <span><kbd>E</kbd>глаза: off / shut / обратно</span>
+    <span><kbd>F</kbd>flip</span>
+    <span><kbd>N</kbd>дубль кадра</span>
+    <span><kbd>⌫</kbd>удалить кадр</span>
+    <span><kbd>[ ]</kbd>длительность</span>
+    <span><kbd>⇧+стрелки</kbd>сдвиг</span>
+    <span><kbd>P</kbd>playground</span>
+  </footer>
+</div>
+
+<div class="pg" id="pg" hidden>
+  <div class="pgBar">
+    <b>PLAYGROUND</b>
+    <span class="pgKeys">
+      <kbd>← →</kbd>бежать <kbd>↑</kbd>прыжок <kbd>⇧</kbd>быстрее <kbd>R</kbd>сначала <kbd>esc</kbd>выход
+    </span>
+    <div class="grow"></div>
+    <label>стоит <select id="pgIdle"></select></label>
+    <label>бежит <select id="pgRun"></select></label>
+    <label>в воздухе <select id="pgAir"></select></label>
+    <span class="pgState" id="pgState"></span>
+    <button data-act="pg-close">выход</button>
+  </div>
+  <div class="pgField"><canvas id="pgCanvas"></canvas></div>
+</div>
+
+<dialog id="exportDlg">
+  <div class="tabs" id="tabs"></div>
+  <div class="pane" id="pane"></div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+"use strict";
+
+/* ══════════════════════════════════════════════════════════════
+   1. ГЕОМЕТРИЯ СПРАЙТА — снята один в один с TWOZERO.svg
+   ══════════════════════════════════════════════════════════════ */
+const N = 16;
+
+// Тело: диапазоны [x0,x1] по строкам, минус глазницы 2×2.
+const BODY_ROWS = {3:[5,10], 4:[4,11], 5:[3,12], 6:[3,12], 7:[3,12], 8:[3,12], 9:[4,11], 10:[4,11]};
+const SOCKET_L = [[5,6],[6,6],[5,7],[6,7]];
+const SOCKET_R = [[9,6],[10,6],[9,7],[10,7]];
+const SOCKETS = new Set([...SOCKET_L, ...SOCKET_R].map(c => c[0] + "," + c[1]));
+const BODY = [];
+for (const y in BODY_ROWS) {
+  const [a, b] = BODY_ROWS[y];
+  for (let x = a; x <= b; x++) if (!SOCKETS.has(x + "," + y)) BODY.push([x, +y]);
+}
+
+const PARTS = {
+  armL: { down: [[2,8],[2,9],[2,10],[2,11]], up: [[1,6],[1,7],[1,8],[2,8]] },
+  armR: { down: [[13,8],[13,9],[13,10],[13,11]], up: [[14,6],[14,7],[14,8],[13,8]] },
+  legL: { down: [[6,11],[6,12],[6,13]], up: [[6,10],[6,11],[6,12]] },
+  legR: { down: [[9,11],[9,12],[9,13]], up: [[9,10],[9,11],[9,12]] },
+};
+// off  — зрачка нет, глазница пустая
+// shut — глазница залита цветом тела: закрытый глаз
+const EYES = {
+  eyeL: { tl:[[5,6]], tr:[[6,6]], bl:[[5,7]], br:[[6,7]], off:[], shut:SOCKET_L },
+  eyeR: { tl:[[9,6]], tr:[[10,6]], bl:[[9,7]], br:[[10,7]], off:[], shut:SOCKET_R },
+};
+
+const LIMBS = ["armL","armR","legL","legR"];
+const GAZE  = ["tl","tr","bl","br"];
+const EYE_OFF = [["off","off"], ["shut","shut"]];
+
+const DEFAULT_POSE = () => ({
+  armL:"down", armR:"down", legL:"down", legR:"down",
+  eyeL:"bl", eyeR:"bl", ox:0, oy:0, flip:false, hold:1
+});
+
+/** Все закрашенные клетки позы, с учётом сдвига и отражения. Без дублей. */
+function poseCells(p) {
+  const raw = BODY.slice();
+  for (const k of LIMBS) { const s = PARTS[k][p[k]]; if (s) raw.push(...s); }
+  for (const k of ["eyeL","eyeR"]) { const s = EYES[k][p[k]]; if (s) raw.push(...s); }
+  const seen = new Set(), out = [];
+  const ox = p.ox | 0, oy = p.oy | 0;
+  for (const [x0, y0] of raw) {
+    const x = (p.flip ? N - 1 - x0 : x0) + ox, y = y0 + oy;
+    if (x < 0 || x >= N || y < 0 || y >= N) continue;
+    const key = x + "," + y;
+    if (seen.has(key)) continue;
+    seen.add(key); out.push([x, y]);
+  }
+  return out;
+}
+
+/** Клетки → горизонтальные прямоугольники высотой 1 (для SVG). */
+function cellsToRects(cells) {
+  const rows = new Map();
+  for (const [x, y] of cells) { if (!rows.has(y)) rows.set(y, []); rows.get(y).push(x); }
+  const out = [];
+  for (const y of [...rows.keys()].sort((a, b) => a - b)) {
+    const xs = rows.get(y).sort((a, b) => a - b);
+    let s = xs[0], p = xs[0];
+    for (let i = 1; i < xs.length; i++) {
+      if (xs[i] === p + 1) { p = xs[i]; continue; }
+      out.push({ x: s, y, w: p - s + 1 }); s = p = xs[i];
+    }
+    out.push({ x: s, y, w: p - s + 1 });
+  }
+  return out;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   2. БИБЛИОТЕКА КЛИПОВ
+   ══════════════════════════════════════════════════════════════ */
+// f(строка-код) → поза. Код: "aL aR lL lR eL eR ox oy flip hold"
+function f(armL, armR, legL, legR, eyeL, eyeR, ox = 0, oy = 0, flip = false, hold = 1) {
+  return { armL, armR, legL, legR, eyeL, eyeR, ox, oy, flip, hold };
+}
+const D = "down", U = "up";
+
+function builtinClips() {
+  return {
+    "idle": { fps: 6, loop: true, frames: [
+      f(D,D,D,D,"bl","bl",0,0,false,10),
+      f(D,D,D,D,"br","br",0,0,false,4),
+      f(D,D,D,D,"shut","shut",0,0,false,1),
+      f(D,D,D,D,"bl","bl",0,0,false,12),
+      f(D,D,D,D,"tl","tl",0,0,false,3),
+      f(D,D,D,D,"shut","shut",0,0,false,1),
+      f(D,D,D,D,"bl","bl",0,0,false,7),
+    ]},
+    "blink": { fps: 10, loop: true, frames: [
+      f(D,D,D,D,"bl","bl",0,0,false,14),
+      f(D,D,D,D,"shut","shut",0,0,false,2),
+      f(D,D,D,D,"bl","bl",0,0,false,4),
+      f(D,D,D,D,"shut","shut",0,0,false,2),
+      f(D,D,D,D,"bl","bl",0,0,false,20),
+      f(D,D,D,D,"off","off",0,0,false,6),
+    ]},
+    "walk": { fps: 6, loop: true, frames: [
+      f(D,U,U,D,"br","br"),
+      f(D,D,D,D,"br","br"),
+      f(U,D,D,U,"br","br"),
+      f(D,D,D,D,"br","br"),
+    ]},
+    "run": { fps: 12, loop: true, frames: [
+      f(D,U,U,D,"br","br",0,0),
+      f(D,D,D,D,"br","br",0,-1),
+      f(U,D,D,U,"br","br",0,0),
+      f(D,D,D,D,"br","br",0,-1),
+    ]},
+    "wave": { fps: 6, loop: true, frames: [
+      f(D,U,D,D,"br","br",0,0,false,3),
+      f(D,D,D,D,"br","br",0,0,false,2),
+      f(D,U,D,D,"br","br",0,0,false,3),
+      f(D,D,D,D,"br","br",0,0,false,2),
+      f(D,D,D,D,"bl","bl",0,0,false,6),
+    ]},
+    "windmill": { fps: 14, loop: true, frames: [
+      f(U,D,D,D,"tl","tr"),
+      f(U,U,D,D,"tl","tr"),
+      f(D,U,D,D,"tl","tr"),
+      f(D,D,D,D,"bl","br"),
+    ]},
+    "look-around": { fps: 4, loop: true, frames: [
+      f(D,D,D,D,"bl","bl",0,0,false,3),
+      f(D,D,D,D,"tl","tl",0,0,false,2),
+      f(D,D,D,D,"tr","tr",0,0,false,2),
+      f(D,D,D,D,"br","br",0,0,false,3),
+      f(D,D,D,D,"bl","bl",0,0,false,2),
+      f(D,D,D,D,"tl","tl",0,0,false,2),
+    ]},
+    "jump": { fps: 10, loop: true, frames: [
+      f(D,D,D,D,"bl","bl",0,0,false,3),
+      f(D,D,U,U,"tl","tr",0,0,false,1),
+      f(U,U,U,U,"tl","tr",0,-2,false,2),
+      f(U,U,U,U,"tl","tr",0,-3,false,3),
+      f(U,U,U,U,"bl","br",0,-1,false,1),
+      f(D,D,U,U,"bl","br",0,0,false,2),
+      f(D,D,D,D,"bl","bl",0,0,false,4),
+    ]},
+    "dance": { fps: 8, loop: true, frames: [
+      f(U,D,U,D,"tl","tl",0,0,false,2),
+      f(D,U,D,U,"tr","tr",0,-1,false,2),
+      f(U,D,U,D,"tl","tl",0,0,true,2),
+      f(D,U,D,U,"tr","tr",0,-1,true,2),
+    ]},
+    "scan": { fps: 12, loop: true, frames: [
+      f(D,D,D,D,"tl","tl",0,0,false,2),
+      f(D,D,D,D,"tr","tr",0,0,false,2),
+      f(D,D,D,D,"tl","tl",0,0,false,1),
+      f(D,D,D,D,"tr","tr",0,0,false,1),
+      f(D,D,D,D,"br","br",0,0,false,6),
+    ]},
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════
+   3. СОСТОЯНИЕ
+   ══════════════════════════════════════════════════════════════ */
+const STORE = "twozero-animator-v1";
+const state = {
+  clips: builtinClips(),
+  clip: "run",
+  frame: 0,
+  playing: true,
+  loop: true,
+  onion: true,
+  grid: false,
+  alpha: false,
+  linkEyes: true,
+  palette: { bg: "#DB0000", fg: "#3B0000" },
+};
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s && s.clips && Object.keys(s.clips).length) {
+      state.clips = s.clips;
+      // Клипы, добавленные в библиотеку уже после сохранения, подмешиваем один раз.
+      // Удалённые вручную не воскресают: их имена лежат в builtinsSeen.
+      const seen = new Set(s.builtinsSeen || []);
+      for (const [name, c] of Object.entries(builtinClips()))
+        if (!seen.has(name) && !state.clips[name]) state.clips[name] = c;
+      state.clip = state.clips[s.clip] ? s.clip : Object.keys(state.clips)[0];
+      for (const k of ["loop","onion","grid","alpha","linkEyes"]) if (k in s) state[k] = s[k];
+      if (s.palette) state.palette = s.palette;
+    }
+  } catch (e) { /* повреждённое хранилище — стартуем с библиотеки */ }
+}
+function save() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify({
+      clips: state.clips, clip: state.clip, loop: state.loop, onion: state.onion,
+      grid: state.grid, alpha: state.alpha, linkEyes: state.linkEyes, palette: state.palette,
+      builtinsSeen: Object.keys(builtinClips()),
+    }));
+  } catch (e) {}
+}
+
+const clip = () => state.clips[state.clip];
+const frames = () => clip().frames;
+const cur = () => frames()[Math.min(state.frame, frames().length - 1)];
+const holdOf = i => Math.max(1, frames()[i] && frames()[i].hold || 1);
+const totalTicks = c => c.frames.reduce((a, fr) => a + Math.max(1, fr.hold || 1), 0);
+
+/* ══════════════════════════════════════════════════════════════
+   4. ОТРИСОВКА
+   ══════════════════════════════════════════════════════════════ */
+function paint(cvs, pose, opt) {
+  opt = opt || {};
+  const ctx = cvs.getContext("2d");
+  ctx.clearRect(0, 0, N, N);
+  if (!opt.alpha) { ctx.fillStyle = state.palette.bg; ctx.fillRect(0, 0, N, N); }
+  if (opt.ghost) {
+    ctx.globalAlpha = .34; ctx.fillStyle = state.palette.fg;
+    for (const [x, y] of poseCells(opt.ghost)) ctx.fillRect(x, y, 1, 1);
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = state.palette.fg;
+  for (const [x, y] of poseCells(pose)) ctx.fillRect(x, y, 1, 1);
+  if (opt.hi && opt.hi.length) {
+    ctx.fillStyle = "#FF2A00";
+    for (const [x, y] of opt.hi) ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+const $ = s => document.querySelector(s);
+const stage = $("#stage"), one = $("#one"), four = $("#four"), mark = $("#mark");
+let hover = null; // {part, val}
+
+function hiCells(pose, h) {
+  if (!h) return [];
+  let src = [];
+  if (LIMBS.includes(h.part)) src = PARTS[h.part][pose[h.part]] || [];
+  else src = EYES[h.part][h.val] || [];
+  const ox = pose.ox | 0, oy = pose.oy | 0;
+  return src.map(([x, y]) => [(pose.flip ? N - 1 - x : x) + ox, y + oy])
+            .filter(([x, y]) => x >= 0 && x < N && y >= 0 && y < N);
+}
+
+function drawStage() {
+  const p = cur();
+  if (!p) return;
+  const ghost = (state.onion && !state.playing && frames().length > 1)
+    ? frames()[(state.frame - 1 + frames().length) % frames().length] : null;
+  paint(stage, p, { alpha: state.alpha, ghost, hi: hiCells(p, hover) });
+  paint(one, p, { alpha: state.alpha });
+  paint(four, p, { alpha: state.alpha });
+  $("#field").classList.toggle("alpha", state.alpha);
+  document.querySelectorAll(".chip").forEach(c => c.classList.toggle("alpha", state.alpha));
+
+  // сетка рисуется поверх, в CSS-пикселях, чтобы линии были в 1px
+  if (state.grid) {
+    const ctx = stage.getContext("2d");
+    ctx.save();
+    ctx.globalAlpha = .22; ctx.fillStyle = "#000";
+    for (let i = 1; i < N; i++) { ctx.fillRect(i, 0, .06, N); ctx.fillRect(0, i, N, .06); }
+    ctx.restore();
+  }
+}
+
+/* ── таймлайн ── */
+function drawStrip() {
+  const strip = $("#strip");
+  strip.textContent = "";
+  frames().forEach((p, i) => {
+    const b = document.createElement("button");
+    b.className = "cel" + (i === state.frame ? " sel" : "");
+    b.draggable = true;
+    b.dataset.i = i;
+    const c = document.createElement("canvas");
+    c.width = c.height = N;
+    paint(c, p, { alpha: state.alpha });
+    b.append(c);
+    const idx = document.createElement("i"); idx.textContent = i + 1; b.append(idx);
+    const h = document.createElement("u"); h.textContent = "×" + Math.max(1, p.hold || 1); b.append(h);
+    strip.append(b);
+  });
+  const add = document.createElement("button");
+  add.className = "cel add"; add.textContent = "+"; add.dataset.act = "f-dup";
+  strip.append(add);
+  revealFrame();
+}
+
+/** Во время проигрывания достаточно переставить рамку — DOM не пересобираем. */
+function markStrip() {
+  document.querySelectorAll("#strip .cel[data-i]").forEach(c => {
+    c.classList.toggle("sel", +c.dataset.i === state.frame);
+  });
+  revealFrame();
+}
+
+/** Держим выбранный кадр в поле зрения: при 80 кадрах он иначе уезжает за край. */
+function revealFrame() {
+  const strip = $("#strip"), cel = strip.querySelector(".cel.sel");
+  if (!cel || strip.scrollWidth <= strip.clientWidth) return;
+  const pad = 12;
+  const l = cel.offsetLeft, r = l + cel.offsetWidth;
+  if (l < strip.scrollLeft + pad) strip.scrollLeft = Math.max(0, l - pad);
+  else if (r > strip.scrollLeft + strip.clientWidth - pad)
+    strip.scrollLeft = r - strip.clientWidth + pad;
+}
+
+/* ── панель позы ── */
+function buildControls() {
+  document.querySelectorAll(".seg[data-part]").forEach(seg => {
+    seg.textContent = "";
+    [["down", "down"], ["up", "up"], ["off", "—"]].forEach(([v, label]) => {
+      const b = document.createElement("button");
+      b.textContent = label; b.dataset.val = v;
+      b.onclick = () => { setPart(seg.dataset.part, v); };
+      seg.append(b);
+    });
+  });
+  document.querySelectorAll(".pad[data-eye]").forEach(pad => {
+    pad.textContent = "";
+    GAZE.forEach(v => {
+      const b = document.createElement("button");
+      b.dataset.val = v; b.title = v;
+      b.onclick = () => setGaze(pad.dataset.eye, v);
+      pad.append(b);
+    });
+  });
+  document.querySelectorAll(".eyeOff[data-eye]").forEach(box => {
+    box.textContent = "";
+    EYE_OFF.forEach(([v, label]) => {
+      const b = document.createElement("button");
+      b.textContent = label; b.dataset.val = v;
+      b.title = v === "off" ? "зрачок убран, глазница пустая" : "глазница залита — закрытый глаз";
+      b.onclick = () => setGaze(box.dataset.eye, v);
+      box.append(b);
+    });
+  });
+  const nudge = $("#nudge");
+  const cells = [["","↑",""],["←","0","→"],["","↓",""]];
+  const deltas = { "↑": [0,-1], "↓": [0,1], "←": [-1,0], "→": [1,0] };
+  cells.flat().forEach(t => {
+    const b = document.createElement("button");
+    if (!t) { b.style.visibility = "hidden"; nudge.append(b); return; }
+    b.textContent = t;
+    if (t === "0") { b.classList.add("mid"); b.onclick = () => edit(p => { p.ox = 0; p.oy = 0; }); }
+    else b.onclick = () => edit(p => { p.ox = clamp(p.ox + deltas[t][0], -8, 8); p.oy = clamp(p.oy + deltas[t][1], -8, 8); });
+    nudge.append(b);
+  });
+}
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+function syncControls() {
+  const p = cur(); if (!p) return;
+  document.querySelectorAll(".seg[data-part]").forEach(seg => {
+    seg.querySelectorAll("button").forEach(b => b.classList.toggle("on", p[seg.dataset.part] === b.dataset.val));
+  });
+  document.querySelectorAll(".pad[data-eye], .eyeOff[data-eye]").forEach(box => {
+    box.querySelectorAll("button").forEach(b => b.classList.toggle("on", p[box.dataset.eye] === b.dataset.val));
+  });
+  setOn("link", state.linkEyes); setOn("flip", p.flip);
+  setOn("loop", state.loop); setOn("onion", state.onion);
+  setOn("grid", state.grid); setOn("alpha", state.alpha);
+  if (document.activeElement !== $("#fps")) $("#fps").value = clip().fps;
+  $("#colBg").value = state.palette.bg;
+  $("#colFg").value = state.palette.fg;
+  $("#play").textContent = state.playing ? "❚❚ pause" : "▶ play";
+  const t = totalTicks(clip());
+  $("#stageInfo").textContent = plural(frames().length, "кадр", "кадра", "кадров")
+    + " · " + (t / clip().fps).toFixed(2) + "s цикл";
+  $("#frameInfo").textContent = "#" + (state.frame + 1) + " · ×" + Math.max(1, p.hold || 1)
+    + (p.ox || p.oy ? " · " + p.ox + "," + p.oy : "");
+}
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  const w = (a > 10 && a < 20) ? many : b === 1 ? one : (b >= 2 && b <= 4) ? few : many;
+  return n + " " + w;
+}
+function setOn(act, v) {
+  const b = document.querySelector('[data-act="' + act + '"]');
+  if (b) b.classList.toggle("on", !!v);
+}
+
+function render() { drawStage(); drawStrip(); syncControls(); save(); }
+
+/* ══════════════════════════════════════════════════════════════
+   5. РЕДАКТИРОВАНИЕ
+   ══════════════════════════════════════════════════════════════ */
+function edit(fn) {
+  const p = cur(); if (!p) return;
+  state.playing = false;
+  fn(p);
+  render();
+}
+function setPart(part, val) { edit(p => { p[part] = val; }); }
+function togglePart(part) { edit(p => { p[part] = p[part] === "up" ? "down" : "up"; }); }
+function setGaze(eye, val) {
+  edit(p => {
+    p[eye] = val;
+    if (state.linkEyes) p[eye === "eyeL" ? "eyeR" : "eyeL"] = val;
+  });
+}
+function goto(i) {
+  const n = frames().length;
+  state.frame = ((i % n) + n) % n;
+  render();
+}
+
+function addFrame(copy) {
+  const src = copy && cur() ? JSON.parse(JSON.stringify(cur())) : DEFAULT_POSE();
+  frames().splice(state.frame + 1, 0, src);
+  state.frame++; state.playing = false; render();
+}
+function delFrame() {
+  if (frames().length <= 1) { toast("последний кадр не удалить"); return; }
+  frames().splice(state.frame, 1);
+  state.frame = Math.max(0, state.frame - 1);
+  state.playing = false; render();
+}
+function moveFrame(d) {
+  const i = state.frame, j = i + d;
+  if (j < 0 || j >= frames().length) return;
+  const arr = frames();
+  [arr[i], arr[j]] = [arr[j], arr[i]];
+  state.frame = j; render();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   6. ХИТ-ЗОНЫ НА СПРАЙТЕ
+   ══════════════════════════════════════════════════════════════ */
+function hitTest(cx, cy) {
+  const p = cur(); if (!p) return null;
+  let x = cx - (p.ox | 0), y = cy - (p.oy | 0);
+  if (p.flip) x = N - 1 - x;                       // работаем в системе координат спрайта
+  if (y >= 6 && y <= 7) {
+    if (x === 5 || x === 6) return { part: "eyeL", val: (y === 6 ? "t" : "b") + (x === 5 ? "l" : "r") };
+    if (x === 9 || x === 10) return { part: "eyeR", val: (y === 6 ? "t" : "b") + (x === 9 ? "l" : "r") };
+  }
+  if (y >= 4 && y <= 12) {
+    if (x <= 2) return { part: "armL" };
+    if (x >= 13) return { part: "armR" };
+  }
+  if (y >= 11) return { part: x <= 7 ? "legL" : "legR" };
+  return null;
+}
+function stageCell(ev) {
+  const r = stage.getBoundingClientRect();
+  return [Math.floor((ev.clientX - r.left) / r.width * N), Math.floor((ev.clientY - r.top) / r.height * N)];
+}
+stage.addEventListener("pointermove", ev => {
+  const [x, y] = stageCell(ev);
+  const h = hitTest(x, y);
+  const same = (!h && !hover) || (h && hover && h.part === hover.part && h.val === hover.val);
+  if (!same) {
+    hover = h;
+    stage.style.cursor = h ? "pointer" : "crosshair";
+    const map = { armL: "рука L", armR: "рука R", legL: "нога L", legR: "нога R", eyeL: "зрачок L", eyeR: "зрачок R" };
+    $("#hint").innerHTML = h ? "<b>" + map[h.part] + "</b> — клик" : "кликай прямо по спрайту: <b>рука · нога · зрачок</b>";
+    drawStage();
+  }
+});
+stage.addEventListener("pointerleave", () => {
+  hover = null; drawStage();
+  $("#hint").innerHTML = "кликай прямо по спрайту: <b>рука · нога · зрачок</b>";
+});
+stage.addEventListener("click", ev => {
+  const [x, y] = stageCell(ev);
+  const h = hitTest(x, y); if (!h) return;
+  if (h.val) setGaze(h.part, h.val); else togglePart(h.part);
+});
+
+/* ══════════════════════════════════════════════════════════════
+   7. ВОСПРОИЗВЕДЕНИЕ
+   ══════════════════════════════════════════════════════════════ */
+let acc = 0, last = 0, markAcc = 0, markFrame = 0;
+function tickLoop(ts) {
+  const dt = last ? Math.min(ts - last, 250) : 0; last = ts;
+
+  if (play.open) {
+    // физика фиксированным шагом 60 Гц — чтобы прыжок не зависел от частоты кадров
+    play.phys += dt;
+    let n = 0;
+    while (play.phys >= 1000 / 60 && n++ < 6) { play.phys -= 1000 / 60; pgStep(); }
+    if (n >= 6) play.phys = 0;
+    pgAnim(dt); pgDraw();
+    requestAnimationFrame(tickLoop);
+    return;
+  }
+
+  if (state.playing) {
+    const step = 1000 / clip().fps;
+    acc += dt;
+    let guard = 0, moved = false;
+    while (acc >= step * holdOf(state.frame) && guard++ < 240) {
+      acc -= step * holdOf(state.frame);
+      if (state.frame + 1 >= frames().length) {
+        if (state.loop) state.frame = 0;
+        else { state.playing = false; acc = 0; break; }
+      } else state.frame++;
+      moved = true;
+    }
+    if (moved || !state.playing) { drawStage(); markStrip(); syncControls(); }
+  }
+
+  // логотип живёт своей жизнью — всегда играет текущий клип
+  const mstep = 1000 / clip().fps;
+  markAcc += dt;
+  if (markFrame >= frames().length) markFrame = 0;
+  let g2 = 0;
+  while (markAcc >= mstep * Math.max(1, (frames()[markFrame] || {}).hold || 1) && g2++ < 240) {
+    markAcc -= mstep * Math.max(1, (frames()[markFrame] || {}).hold || 1);
+    markFrame = (markFrame + 1) % frames().length;
+  }
+  paint(mark, frames()[markFrame] || DEFAULT_POSE(), {});
+
+  requestAnimationFrame(tickLoop);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   7.5 PLAYGROUND — персонажем можно порулить по стрелочкам
+   ══════════════════════════════════════════════════════════════ */
+const PW = 192, PH = 84;                  // мир в пикселях спрайта
+const GRAV = 0.32, JUMP = -4.4, RUN_SPD = 0.9, FRICTION = .75, MAX_FALL = 6;
+const HULL = { ox: 3, oy: 3, w: 10, h: 11 };   // коробка столкновений внутри кадра 16×16
+
+// Пол и площадки. Прыжок даёт ~30 px подъёма, поэтому каждая ступень
+// поднята не больше чем на 20 px над предыдущей, а разрывы по горизонтали
+// меньше 24 px — столько персонаж пролетает за время полёта.
+const SOLIDS = [
+  { x: 0,   y: 72, w: 192, h: 12 },
+  { x: 0,   y: 46, w: 14,  h: 4  },
+  { x: 34,  y: 56, w: 34,  h: 4  },
+  { x: 74,  y: 42, w: 30,  h: 4  },
+  { x: 120, y: 54, w: 38,  h: 4  },
+  { x: 164, y: 34, w: 28,  h: 4  },
+];
+const SPAWN = { x: 20, y: 54 };           // над полом и с чистым небом: слева от первой площадки
+
+const play = {
+  open: false, x: SPAWN.x, y: SPAWN.y, vx: 0, vy: 0, face: 1, grounded: false,
+  keys: new Set(), phys: 0, anim: 0, frame: 0, mode: "idle",
+  map: { idle: "idle", run: "run", air: "jump" },
+};
+
+const pgBox = () => ({ x: play.x + HULL.ox, y: play.y + HULL.oy, w: HULL.w, h: HULL.h });
+
+function pgMove(axis, d) {
+  if (!d) return;
+  if (axis === "x") play.x += d; else play.y += d;
+  for (const s of SOLIDS) {
+    const b = pgBox();
+    if (b.x + b.w <= s.x || b.x >= s.x + s.w || b.y + b.h <= s.y || b.y >= s.y + s.h) continue;
+    if (axis === "x") {
+      play.x = d > 0 ? s.x - HULL.w - HULL.ox : s.x + s.w - HULL.ox;
+      play.vx = 0;
+    } else {
+      if (d > 0) { play.y = s.y - HULL.h - HULL.oy; play.grounded = true; }
+      else play.y = s.y + s.h - HULL.oy;
+      play.vy = 0;
+    }
+  }
+}
+
+function pgStep() {
+  const k = play.keys;
+  const left  = k.has("ArrowLeft")  || k.has("KeyA");
+  const right = k.has("ArrowRight") || k.has("KeyD");
+  const jump  = k.has("ArrowUp") || k.has("KeyW") || k.has("Space");
+  const fast  = k.has("ShiftLeft") || k.has("ShiftRight");
+
+  if (left && !right)      { play.vx = -RUN_SPD * (fast ? 1.7 : 1); play.face = -1; }
+  else if (right && !left) { play.vx =  RUN_SPD * (fast ? 1.7 : 1); play.face =  1; }
+  else                     { play.vx *= FRICTION; if (Math.abs(play.vx) < .05) play.vx = 0; }
+
+  if (jump && play.grounded) { play.vy = JUMP; play.grounded = false; }
+  // отпустил кнопку на подъёме — прыжок выходит коротким
+  if (!jump && play.vy < -1.2) play.vy = -1.2;
+  play.vy = Math.min(play.vy + GRAV, MAX_FALL);
+
+  pgMove("x", play.vx);
+  play.grounded = false;
+  pgMove("y", play.vy);
+
+  const b = pgBox();
+  if (b.x < 0)          { play.x = -HULL.ox; play.vx = 0; }
+  if (b.x + b.w > PW)   { play.x = PW - HULL.w - HULL.ox; play.vx = 0; }
+  if (b.y > PH + 40) pgReset();
+}
+
+function pgReset() { play.x = SPAWN.x; play.y = SPAWN.y; play.vx = play.vy = 0; play.face = 1; }
+
+const pgClip = role => state.clips[play.map[role]] || state.clips[state.clip] || clip();
+
+/** В воздухе держим один кадр — самый «раскрытый» из клипа прыжка. */
+function pgAirPose() {
+  const c = pgClip("air");
+  let best = c.frames[0], score = -1;
+  for (const p of c.frames) {
+    const s = LIMBS.filter(key => p[key] === "up").length;
+    if (s > score) { score = s; best = p; }
+  }
+  return Object.assign({}, best, { ox: 0, oy: 0 });   // высоту задаёт физика, не кадр
+}
+
+function pgAnim(dt) {
+  const mode = !play.grounded ? "air" : (Math.abs(play.vx) > .08 ? "run" : "idle");
+  if (mode !== play.mode) { play.mode = mode; play.frame = 0; play.anim = 0; }
+  if (mode === "air") return;
+  const c = pgClip(mode);
+  if (!c.frames.length) return;
+  const step = 1000 / c.fps;
+  play.anim += dt;
+  let guard = 0;
+  const hold = () => Math.max(1, c.frames[play.frame % c.frames.length].hold || 1);
+  while (play.anim >= step * hold() && guard++ < 60) {
+    play.anim -= step * hold();
+    play.frame = (play.frame + 1) % c.frames.length;
+  }
+}
+
+function pgPose() {
+  if (!play.grounded) return pgAirPose();
+  const c = pgClip(play.mode);
+  return c.frames[play.frame % c.frames.length] || DEFAULT_POSE();
+}
+
+function pgDraw() {
+  const ctx = $("#pgCanvas").getContext("2d");
+  ctx.fillStyle = state.palette.bg; ctx.fillRect(0, 0, PW, PH);
+  ctx.fillStyle = state.palette.fg;
+  for (const s of SOLIDS) ctx.fillRect(s.x, s.y, s.w, s.h);
+
+  const p = pgPose();
+  // направление взгляда задаёт зеркало; авторский flip кадра при этом сохраняется
+  const pose = Object.assign({}, p, { flip: (play.face < 0) !== !!p.flip });
+  const px = Math.round(play.x), py = Math.round(play.y);
+  for (const c of poseCells(pose)) ctx.fillRect(px + c[0], py + c[1], 1, 1);
+
+  const c = pgClip(play.mode);
+  $("#pgState").textContent = play.mode + " · " + play.map[play.mode]
+    + (play.mode === "air" ? " (кадр)" : " · " + c.fps + "fps");
+}
+
+function pgResize() {
+  const cv = $("#pgCanvas");
+  // буфер держим равным миру, иначе CSS растянет пиксели по одной оси сильнее, чем по другой
+  if (cv.width !== PW || cv.height !== PH) { cv.width = PW; cv.height = PH; }
+  const bar = $(".pgBar").getBoundingClientRect().height;
+  const s = Math.max(2, Math.floor(Math.min(window.innerWidth / PW, (window.innerHeight - bar - 40) / PH)));
+  cv.style.width = (PW * s) + "px";
+  cv.style.height = (PH * s) + "px";
+}
+
+function pgFillSelects() {
+  const names = Object.keys(state.clips);
+  for (const [role, id] of [["idle", "#pgIdle"], ["run", "#pgRun"], ["air", "#pgAir"]]) {
+    if (!state.clips[play.map[role]]) play.map[role] = names[0];
+    const sel = $(id); sel.textContent = "";
+    for (const n of names) {
+      const o = document.createElement("option");
+      o.value = o.textContent = n;
+      if (n === play.map[role]) o.selected = true;
+      sel.append(o);
+    }
+    sel.onchange = e => { play.map[role] = e.target.value; play.frame = 0; play.anim = 0; };
+  }
+}
+
+function pgOpen() {
+  play.open = true; state.playing = false;
+  pgFillSelects(); pgReset();
+  play.keys.clear(); play.phys = 0;
+  $("#pg").hidden = false;
+  pgResize(); syncControls();
+}
+function pgClose() { play.open = false; play.keys.clear(); $("#pg").hidden = true; }
+
+window.addEventListener("resize", () => { if (play.open) pgResize(); });
+window.addEventListener("blur", () => play.keys.clear());
+
+// цель события — не всегда элемент (синтетические события шлют на document)
+const isField = t => t instanceof Element && t.matches("input, textarea, select");
+
+window.addEventListener("keydown", ev => {
+  if (!play.open) return;
+  if (isField(ev.target)) return;
+  if (ev.code === "Escape") { pgClose(); return; }
+  if (ev.code === "KeyR") { pgReset(); return; }
+  if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space"].includes(ev.code)) ev.preventDefault();
+  play.keys.add(ev.code);
+});
+window.addEventListener("keyup", ev => play.keys.delete(ev.code));
+
+/* ══════════════════════════════════════════════════════════════
+   8. КЛИПЫ
+   ══════════════════════════════════════════════════════════════ */
+function refreshClipSel() {
+  const sel = $("#clipSel");
+  sel.textContent = "";
+  for (const name of Object.keys(state.clips)) {
+    const o = document.createElement("option");
+    o.value = o.textContent = name;
+    if (name === state.clip) o.selected = true;
+    sel.append(o);
+  }
+}
+function uniqueName(base) {
+  let n = base, i = 2;
+  while (state.clips[n]) n = base + "-" + i++;
+  return n;
+}
+function switchClip(name) {
+  state.clip = name; state.frame = 0; acc = 0; markFrame = 0; markAcc = 0;
+  refreshClipSel(); render();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   9. ЭКСПОРТ
+   ══════════════════════════════════════════════════════════════ */
+function projectJSON() {
+  return {
+    format: "twozero-anim/1",
+    size: N,
+    palette: state.palette,
+    parts: {
+      body: BODY,
+      armL: PARTS.armL, armR: PARTS.armR, legL: PARTS.legL, legR: PARTS.legR,
+      eyeL: EYES.eyeL, eyeR: EYES.eyeR,
+    },
+    clips: state.clips,
+  };
+}
+
+const fmt = v => (Math.round(v * 10000) / 10000).toString();
+
+function clipToSVG(c, alpha) {
+  const total = totalTicks(c), dur = (total / c.fps);
+  const bg = alpha ? "" : '<rect width="16" height="16" fill="' + state.palette.bg + '"/>';
+  const rectsOf = p => cellsToRects(poseCells(p))
+    .map(r => '<rect x="' + r.x + '" y="' + r.y + '" width="' + r.w + '" height="1"/>').join("");
+
+  let inner;
+  if (c.frames.length === 1) {
+    inner = rectsOf(c.frames[0]);
+  } else {
+    let t = 0, out = "";
+    for (const p of c.frames) {
+      const h = Math.max(1, p.hold || 1);
+      const t0 = t / total, t1 = (t + h) / total; t += h;
+      let values, keyTimes;
+      if (t0 === 0) { values = "inline;none"; keyTimes = "0;" + fmt(t1); }
+      else if (t1 >= 1) { values = "none;inline"; keyTimes = "0;" + fmt(t0); }
+      else { values = "none;inline;none"; keyTimes = "0;" + fmt(t0) + ";" + fmt(t1); }
+      out += '<g display="none"><animate attributeName="display" calcMode="discrete" values="'
+        + values + '" keyTimes="' + keyTimes + '" dur="' + fmt(dur) + 's" repeatCount="'
+        + (c.loop ? "indefinite" : "1") + '" fill="freeze"/>' + rectsOf(p) + "</g>";
+    }
+    inner = out;
+  }
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" shape-rendering="crispEdges">'
+    + bg + '<g fill="' + state.palette.fg + '">' + inner + "</g></svg>";
+}
+
+function sheetCanvas(c, scale, alpha) {
+  const cv = document.createElement("canvas");
+  cv.width = N * c.frames.length * scale; cv.height = N * scale;
+  const ctx = cv.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  const tmp = document.createElement("canvas"); tmp.width = tmp.height = N;
+  c.frames.forEach((p, i) => {
+    paint(tmp, p, { alpha });
+    ctx.drawImage(tmp, i * N * scale, 0, N * scale, N * scale);
+  });
+  return cv;
+}
+
+/* ── GIF89a (LZW по алгоритму из omggif) ── */
+function lzwBytes(minCodeSize, px) {
+  const clear = 1 << minCodeSize, eoi = clear + 1;
+  const bytes = []; let cur = 0, nbits = 0;
+  const emit = (code, size) => {
+    cur |= code << nbits; nbits += size;
+    while (nbits >= 8) { bytes.push(cur & 255); cur >>= 8; nbits -= 8; }
+  };
+  let size = minCodeSize + 1, next = eoi + 1, table = new Map();
+  emit(clear, size);
+  let ib = px[0];
+  for (let i = 1; i < px.length; i++) {
+    const k = px[i], key = (ib << 8) | k;
+    const got = table.get(key);
+    if (got !== undefined) { ib = got; continue; }
+    emit(ib, size);
+    if (next === 4096) { emit(clear, size); next = eoi + 1; size = minCodeSize + 1; table = new Map(); }
+    else { if (next >= (1 << size)) size++; table.set(key, next++); }
+    ib = k;
+  }
+  emit(ib, size); emit(eoi, size);
+  if (nbits > 0) { bytes.push(cur & 255); cur = 0; nbits = 0; }
+  return bytes;
+}
+
+function clipToGIF(c, scale, alpha) {
+  scale = Math.max(1, scale | 0);
+  const W = N * scale, H = N * scale;
+  const out = [];
+  const put = (...b) => out.push(...b);
+  const putStr = s => { for (let i = 0; i < s.length; i++) out.push(s.charCodeAt(i) & 255); };
+  const put16 = v => out.push(v & 255, (v >> 8) & 255);
+  const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+
+  putStr("GIF89a");
+  put16(W); put16(H);
+  put(0x80 | 0x70 | 0x01, 0x00, 0x00);            // GCT, 4 записи
+  put(...hex(state.palette.bg));                   // 0 — фон (он же прозрачный в alpha-режиме)
+  put(...hex(state.palette.fg));                   // 1 — спрайт
+  put(0, 0, 0); put(0, 0, 0);                      // 2,3 — добивка до степени двойки
+
+  // Netscape: зациклить
+  put(0x21, 0xFF, 0x0B); putStr("NETSCAPE2.0");
+  put(0x03, 0x01); put16(c.loop ? 0 : 1); put(0x00);
+
+  for (const p of c.frames) {
+    const cells = new Set(poseCells(p).map(([x, y]) => x + "," + y));
+    const px = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+      px[y * W + x] = cells.has(((x / scale) | 0) + "," + ((y / scale) | 0)) ? 1 : 0;
+
+    const delay = Math.max(2, Math.round(Math.max(1, p.hold || 1) * 100 / c.fps));
+    const disposal = alpha ? 2 : 1;
+    put(0x21, 0xF9, 0x04, (disposal << 2) | (alpha ? 1 : 0));
+    put16(delay); put(0x00, 0x00);
+
+    put(0x2C); put16(0); put16(0); put16(W); put16(H); put(0x00);
+    put(0x02);                                     // LZW min code size
+    const data = lzwBytes(2, px);
+    for (let i = 0; i < data.length; i += 255) {
+      const chunk = data.slice(i, i + 255);
+      put(chunk.length, ...chunk);
+    }
+    put(0x00);
+  }
+  put(0x3B);
+  return new Uint8Array(out);
+}
+
+function jsModule() {
+  const j = projectJSON();
+  return "// TWOZERO sprite + анимации. Сгенерировано редактором.\n"
+    + "// Использование:\n"
+    + "//   const a = new TWOZERO.Animator(canvas, 'run');\n"
+    + "//   a.start();   // rAF-цикл, canvas масштабируется сам\n"
+    + "const TWOZERO = (() => {\n"
+    + "const DATA = " + JSON.stringify(j) + ";\n"
+    + "const N = DATA.size, P = DATA.parts;\n"
+    + "const LIMBS = ['armL','armR','legL','legR'];\n"
+    + "function cells(p){\n"
+    + "  const raw = P.body.slice();\n"
+    + "  for (const k of LIMBS){ const s = P[k][p[k]]; if (s) raw.push(...s); }\n"
+    + "  for (const k of ['eyeL','eyeR']){ const s = P[k][p[k]]; if (s) raw.push(...s); }\n"
+    + "  const seen = new Set(), out = [], ox = p.ox|0, oy = p.oy|0;\n"
+    + "  for (const c of raw){ const x = (p.flip ? N-1-c[0] : c[0]) + ox, y = c[1] + oy;\n"
+    + "    if (x<0||x>=N||y<0||y>=N) continue; const k = x+','+y; if (seen.has(k)) continue;\n"
+    + "    seen.add(k); out.push([x,y]); }\n"
+    + "  return out;\n"
+    + "}\n"
+    + "function draw(ctx, p, scale, opt){ opt = opt || {};\n"
+    + "  ctx.imageSmoothingEnabled = false;\n"
+    + "  ctx.clearRect(0,0,N*scale,N*scale);\n"
+    + "  if (!opt.alpha){ ctx.fillStyle = opt.bg || DATA.palette.bg; ctx.fillRect(0,0,N*scale,N*scale); }\n"
+    + "  ctx.fillStyle = opt.fg || DATA.palette.fg;\n"
+    + "  for (const c of cells(p)) ctx.fillRect(c[0]*scale, c[1]*scale, scale, scale);\n"
+    + "}\n"
+    + "class Animator{\n"
+    + "  constructor(canvas, clip, opt){ this.cv = canvas; this.ctx = canvas.getContext('2d');\n"
+    + "    this.opt = opt || {}; this.scale = this.opt.scale || Math.max(1, Math.floor(canvas.width / N) || 1);\n"
+    + "    this.cv.width = N*this.scale; this.cv.height = N*this.scale;\n"
+    + "    this.set(clip || Object.keys(DATA.clips)[0]); this.raf = 0; this.t = 0; }\n"
+    + "  set(name){ this.clip = DATA.clips[name]; this.name = name; this.i = 0; this.acc = 0; this.render(); return this; }\n"
+    + "  render(){ draw(this.ctx, this.clip.frames[this.i], this.scale, this.opt); }\n"
+    + "  step(dt){ const s = 1000/this.clip.fps; this.acc += dt; let g = 0;\n"
+    + "    while (this.acc >= s*Math.max(1,this.clip.frames[this.i].hold||1) && g++ < 240){\n"
+    + "      this.acc -= s*Math.max(1,this.clip.frames[this.i].hold||1);\n"
+    + "      if (this.i+1 >= this.clip.frames.length){ if (this.clip.loop) this.i = 0; else { this.stop(); break; } }\n"
+    + "      else this.i++; this.render(); } }\n"
+    + "  start(){ if (this.raf) return this; let last = 0;\n"
+    + "    const tick = ts => { this.step(last ? Math.min(ts-last,250) : 0); last = ts; this.raf = requestAnimationFrame(tick); };\n"
+    + "    this.raf = requestAnimationFrame(tick); return this; }\n"
+    + "  stop(){ cancelAnimationFrame(this.raf); this.raf = 0; return this; }\n"
+    + "}\n"
+    + "return { DATA, clips: DATA.clips, cells, draw, Animator };\n"
+    + "})();\n"
+    + "if (typeof module !== 'undefined') module.exports = TWOZERO;\n";
+}
+
+/* ── скачивание / буфер ── */
+function download(name, data, mime) {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: mime || "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast("сохранено: " + name);
+}
+async function copy(text) {
+  try { await navigator.clipboard.writeText(text); toast("скопировано"); }
+  catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.append(ta); ta.select();
+    try { document.execCommand("copy"); toast("скопировано"); } catch (_) { toast("не вышло — скопируй руками"); }
+    ta.remove();
+  }
+}
+let toastT = 0;
+function toast(msg) {
+  const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 1700);
+}
+
+/* ── диалог экспорта ── */
+const TABS = [
+  { id: "json", label: "JSON" },
+  { id: "svg",  label: "SVG (анимированный)" },
+  { id: "gif",  label: "GIF" },
+  { id: "png",  label: "PNG sheet" },
+  { id: "js",   label: "JS-модуль" },
+];
+let tab = "json";
+
+function openExport() {
+  const tabs = $("#tabs"); tabs.textContent = "";
+  TABS.forEach(t => {
+    const b = document.createElement("button");
+    b.textContent = t.label; b.className = t.id === tab ? "on" : "";
+    b.onclick = () => { tab = t.id; openExport(); };
+    tabs.append(b);
+  });
+  const pane = $("#pane"); pane.textContent = "";
+  const c = clip();
+
+  const mk = (html) => { const d = document.createElement("div"); d.innerHTML = html; return d; };
+  const actions = (list) => {
+    const row = document.createElement("div"); row.className = "acts";
+    list.forEach(([label, fn, solid]) => {
+      const b = document.createElement("button");
+      b.textContent = label; if (solid) b.className = "solid";
+      b.onclick = fn; row.append(b);
+    });
+    pane.append(row);
+  };
+
+  if (tab === "json") {
+    pane.append(mk('<p>Полный проект: геометрия спрайта + все клипы. Это канонический формат — отдай его мне, и я смогу анимировать персонажа сам.</p>'));
+    const ta = document.createElement("textarea");
+    ta.value = JSON.stringify(projectJSON(), null, 1); ta.readOnly = true;
+    pane.append(ta);
+    actions([
+      ["Скопировать для Claude", () => copy(JSON.stringify(projectJSON())), true],
+      ["Скачать .json", () => download("twozero-anim.json", JSON.stringify(projectJSON(), null, 2), "application/json")],
+      ["Импорт из файла…", importJSON],
+    ]);
+  }
+
+  if (tab === "svg") {
+    const svg = clipToSVG(c, state.alpha);
+    pane.append(mk('<p>Один самодостаточный файл со SMIL-анимацией клипа <b>' + state.clip + '</b>. Работает в <b>&lt;img&gt;</b>, в CSS-фоне и просто в браузере.</p>'));
+    const prev = document.createElement("div"); prev.className = "preview";
+    const img = document.createElement("img");
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    prev.append(img); pane.append(prev);
+    const ta = document.createElement("textarea"); ta.value = svg; ta.readOnly = true; pane.append(ta);
+    actions([
+      ["Скачать .svg", () => download("twozero-" + state.clip + ".svg", svg, "image/svg+xml"), true],
+      ["Скопировать", () => copy(svg)],
+      ["Все клипы — " + Object.keys(state.clips).length + " файл(ов)", () => {
+        // браузер может спросить разрешение на пакетную загрузку — это нормально
+        Object.keys(state.clips).forEach((name, i) => setTimeout(
+          () => download("twozero-" + name + ".svg", clipToSVG(state.clips[name], state.alpha), "image/svg+xml"),
+          i * 120));
+      }],
+    ]);
+  }
+
+  if (tab === "gif") {
+    pane.append(mk('<p>Анимированный GIF клипа <b>' + state.clip + '</b>. Задержки берутся из fps и длительности кадров. Прозрачность включается тумблером <b>alpha bg</b> на сцене.</p>'));
+    const wrap = document.createElement("div"); wrap.className = "preview";
+    const img = document.createElement("img");
+    const rebuild = s => {
+      const bytes = clipToGIF(c, s, state.alpha);
+      const blob = new Blob([bytes], { type: "image/gif" });
+      img.src = URL.createObjectURL(blob);
+      return blob;
+    };
+    let scale = 8, blob = rebuild(scale);
+    wrap.append(img); pane.append(wrap);
+    const row = document.createElement("div"); row.className = "acts";
+    row.append(mk('<span style="color:var(--dust);font-size:10px;letter-spacing:.14em">SCALE</span>'));
+    [1, 4, 8, 16, 32].forEach(s => {
+      const b = document.createElement("button");
+      b.textContent = s + "×"; b.className = s === scale ? "on" : "";
+      b.onclick = () => { scale = s; blob = rebuild(s); row.querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on"); };
+      row.append(b);
+    });
+    pane.append(row);
+    actions([
+      ["Скачать .gif", () => download("twozero-" + state.clip + "-" + scale + "x.gif", blob, "image/gif"), true],
+    ]);
+  }
+
+  if (tab === "png") {
+    pane.append(mk('<p>Горизонтальный спрайт-лист клипа <b>' + state.clip + '</b>: ' + c.frames.length + ' кадр(ов) по 16×16. Рядом — JSON с длительностями, чтобы кадры не пришлось считать руками.</p>'));
+    const row = document.createElement("div"); row.className = "acts";
+    row.append(mk('<span style="color:var(--dust);font-size:10px;letter-spacing:.14em">SCALE</span>'));
+    [1, 4, 8, 16].forEach(s => {
+      const b = document.createElement("button");
+      b.textContent = s + "×";
+      b.onclick = () => sheetCanvas(c, s, state.alpha).toBlob(bl => download("twozero-" + state.clip + "-sheet-" + s + "x.png", bl, "image/png"), "image/png");
+      row.append(b);
+    });
+    pane.append(row);
+    const meta = {
+      clip: state.clip, fps: c.fps, loop: c.loop, frameSize: N,
+      frames: c.frames.map((p, i) => ({ index: i, x: i * N, hold: Math.max(1, p.hold || 1) })),
+    };
+    const ta = document.createElement("textarea"); ta.value = JSON.stringify(meta, null, 1); ta.readOnly = true;
+    pane.append(ta);
+    actions([["Скачать метаданные .json", () => download("twozero-" + state.clip + "-sheet.json", JSON.stringify(meta, null, 2), "application/json")]]);
+  }
+
+  if (tab === "js") {
+    const src = jsModule();
+    pane.append(mk('<p>Готовый модуль: геометрия, отрисовка в canvas и класс <b>Animator</b> со всеми клипами внутри. Работает и в браузере, и в Node.</p>'));
+    const ta = document.createElement("textarea"); ta.value = src; ta.readOnly = true; pane.append(ta);
+    actions([
+      ["Скачать twozero-sprite.js", () => download("twozero-sprite.js", src, "text/javascript"), true],
+      ["Скопировать", () => copy(src)],
+    ]);
+  }
+
+  const dlg = $("#exportDlg");
+  if (!dlg.open) dlg.showModal();
+}
+
+function importJSON() {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = () => {
+    const file = inp.files[0]; if (!file) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const j = JSON.parse(r.result);
+        const clips = j.clips || j;
+        if (!clips || typeof clips !== "object" || !Object.keys(clips).length) throw new Error("нет клипов");
+        state.clips = clips;
+        state.clip = Object.keys(clips)[0];
+        state.frame = 0;
+        if (j.palette) state.palette = j.palette;
+        refreshClipSel(); render(); openExport();
+        toast("импортировано клипов: " + Object.keys(clips).length);
+      } catch (e) { toast("не читается: " + e.message); }
+    };
+    r.readAsText(file);
+  };
+  inp.click();
+}
+
+/* ══════════════════════════════════════════════════════════════
+   10. СОБЫТИЯ
+   ══════════════════════════════════════════════════════════════ */
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-act]"); if (!b) return;
+  const a = b.dataset.act;
+  const acts = {
+    "export": openExport,
+    "loop":  () => { state.loop = !state.loop; render(); },
+    "onion": () => { state.onion = !state.onion; render(); },
+    "grid":  () => { state.grid = !state.grid; render(); },
+    "alpha": () => { state.alpha = !state.alpha; render(); },
+    "link":  () => { state.linkEyes = !state.linkEyes; syncControls(); save(); },
+    "flip":  () => edit(p => { p.flip = !p.flip; }),
+    "f-add": () => addFrame(false),
+    "f-dup": () => addFrame(true),
+    "f-del": delFrame,
+    "f-left":  () => moveFrame(-1),
+    "f-right": () => moveFrame(1),
+    "f-rev": () => { frames().reverse(); state.frame = 0; render(); },
+    "f-ping": () => {
+      const arr = frames();
+      if (arr.length < 3) { toast("нужно хотя бы 3 кадра"); return; }
+      const tail = arr.slice(1, -1).reverse().map(p => JSON.parse(JSON.stringify(p)));
+      clip().frames = arr.concat(tail); render();
+    },
+    "clip-new": () => {
+      const name = uniqueName(prompt("Имя нового клипа:", "clip") || "");
+      if (!name) return;
+      state.clips[name] = { fps: 8, loop: true, frames: [DEFAULT_POSE()] };
+      switchClip(name);
+    },
+    "clip-dup": () => {
+      const name = uniqueName(state.clip + "-copy");
+      state.clips[name] = JSON.parse(JSON.stringify(clip()));
+      switchClip(name);
+    },
+    "clip-ren": () => {
+      const name = (prompt("Новое имя:", state.clip) || "").trim();
+      if (!name || name === state.clip) return;
+      if (state.clips[name]) { toast("такое имя уже занято"); return; }
+      const ordered = {};
+      for (const k of Object.keys(state.clips)) ordered[k === state.clip ? name : k] = state.clips[k];
+      state.clips = ordered; switchClip(name);
+    },
+    "clip-del": () => {
+      if (Object.keys(state.clips).length <= 1) { toast("последний клип не удалить"); return; }
+      delete state.clips[state.clip];
+      switchClip(Object.keys(state.clips)[0]);
+    },
+    "reset": () => {
+      if (!confirm("Вернуть встроенную библиотеку клипов? Текущие правки пропадут.")) return;
+      state.clips = builtinClips(); switchClip("run");
+    },
+    "pal-reset": () => { state.palette = { bg: "#DB0000", fg: "#3B0000" }; render(); },
+    "pg-open": pgOpen,
+    "pg-close": pgClose,
+  };
+  if (acts[a]) { ev.preventDefault(); acts[a](); }
+});
+
+$("#play").onclick = () => { state.playing = !state.playing; acc = 0; syncControls(); };
+$("#fps").oninput = e => { clip().fps = clamp(parseInt(e.target.value, 10) || 8, 1, 60); syncControls(); save(); };
+$("#clipSel").onchange = e => switchClip(e.target.value);
+$("#colBg").oninput = e => { state.palette.bg = e.target.value; render(); };
+$("#colFg").oninput = e => { state.palette.fg = e.target.value; render(); };
+
+/* таймлайн: выбор + перетаскивание */
+let dragI = null;
+$("#strip").addEventListener("click", ev => {
+  const cel = ev.target.closest(".cel");
+  if (!cel || cel.dataset.act) return;
+  state.playing = false; goto(+cel.dataset.i);
+});
+$("#strip").addEventListener("dragstart", ev => {
+  const cel = ev.target.closest(".cel"); if (!cel || cel.dataset.act) return;
+  dragI = +cel.dataset.i; cel.classList.add("drag");
+  ev.dataTransfer.effectAllowed = "move";
+  ev.dataTransfer.setData("text/plain", String(dragI));
+});
+$("#strip").addEventListener("dragover", ev => { if (dragI !== null) ev.preventDefault(); });
+$("#strip").addEventListener("drop", ev => {
+  const cel = ev.target.closest(".cel");
+  if (dragI === null || !cel || cel.dataset.act) return;
+  ev.preventDefault();
+  const to = +cel.dataset.i, arr = frames();
+  const [m] = arr.splice(dragI, 1);
+  arr.splice(to, 0, m);
+  state.frame = to; dragI = null; render();
+});
+$("#strip").addEventListener("dragend", () => { dragI = null; drawStrip(); });
+
+// обычная мышь колесом вертит только вертикаль — переводим её в горизонталь;
+// preventDefault только если полоса реально сдвинулась, иначе страница застрянет
+$("#strip").addEventListener("wheel", ev => {
+  const el = ev.currentTarget;
+  if (el.scrollWidth <= el.clientWidth) return;
+  const d = Math.abs(ev.deltaY) > Math.abs(ev.deltaX) ? ev.deltaY : ev.deltaX;
+  if (!d) return;
+  const before = el.scrollLeft;
+  el.scrollLeft += d;
+  if (el.scrollLeft !== before) ev.preventDefault();
+}, { passive: false });
+
+/* клавиатура */
+const GAZE_KEY = { w: ["tl", "tr"], s: ["bl", "br"], a: ["tl", "bl"], d: ["tr", "br"] };
+document.addEventListener("keydown", ev => {
+  if (isField(ev.target) || $("#exportDlg").open || play.open) return;
+  const k = ev.key.toLowerCase();
+  const shift = ev.shiftKey;
+
+  if (ev.code === "Space") { ev.preventDefault(); state.playing = !state.playing; acc = 0; syncControls(); return; }
+  if (k === "arrowleft"  && !shift) { ev.preventDefault(); state.playing = false; goto(state.frame - 1); return; }
+  if (k === "arrowright" && !shift) { ev.preventDefault(); state.playing = false; goto(state.frame + 1); return; }
+  if (shift && k.startsWith("arrow")) {
+    ev.preventDefault();
+    const d = { arrowleft: [-1, 0], arrowright: [1, 0], arrowup: [0, -1], arrowdown: [0, 1] }[k];
+    edit(p => { p.ox = clamp(p.ox + d[0], -8, 8); p.oy = clamp(p.oy + d[1], -8, 8); });
+    return;
+  }
+  if ("1234".includes(k)) { ev.preventDefault(); togglePart(LIMBS[+k - 1]); return; }
+  if (k in GAZE_KEY) {
+    ev.preventDefault();
+    // W/S двигают зрачок по вертикали, A/D — по горизонтали, сохраняя вторую ось.
+    // Если глаз был off/shut — возвращаем его в игру от базового «bl».
+    const move = (v) => {
+      const base = GAZE.includes(v) ? v : "bl";
+      const vert = base[0], horz = base[1];
+      if (k === "w") return "t" + horz;
+      if (k === "s") return "b" + horz;
+      if (k === "a") return vert + "l";
+      return vert + "r";
+    };
+    edit(q => { q.eyeL = move(q.eyeL); q.eyeR = move(q.eyeR); });
+    return;
+  }
+  if (k === "e" && !ev.metaKey && !ev.ctrlKey) {
+    ev.preventDefault();
+    const next = v => v === "off" ? "shut" : v === "shut" ? "bl" : "off";
+    edit(q => { q.eyeL = next(q.eyeL); q.eyeR = next(q.eyeR); });
+    return;
+  }
+  if (k === "f") { ev.preventDefault(); edit(p => { p.flip = !p.flip; }); return; }
+  if (k === "n") { ev.preventDefault(); addFrame(true); return; }
+  if (k === "backspace" || k === "delete") { ev.preventDefault(); delFrame(); return; }
+  if (k === "[") { ev.preventDefault(); edit(p => { p.hold = Math.max(1, (p.hold || 1) - 1); }); return; }
+  if (k === "]") { ev.preventDefault(); edit(p => { p.hold = Math.min(99, (p.hold || 1) + 1); }); return; }
+  if (k === "p") { ev.preventDefault(); pgOpen(); return; }
+  if (k === "e" && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); openExport(); }
+});
+
+$("#exportDlg").addEventListener("click", ev => {
+  if (ev.target === ev.currentTarget) ev.currentTarget.close();
+});
+
+/* ══════════════════════════════════════════════════════════════
+   11. СТАРТ
+   ══════════════════════════════════════════════════════════════ */
+load();
+buildControls();
+refreshClipSel();
+render();
+requestAnimationFrame(tickLoop);
+
+})();
+</script>
+</body>
+</html>

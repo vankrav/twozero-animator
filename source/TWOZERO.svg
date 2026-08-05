@@ -1,0 +1,31 @@
+<svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect width="16" height="16" fill="#A6A6A6"/>
+<g id="TWOZERO">
+<rect width="16" height="16" fill="#DB0000"/>
+<path id="LeftHandUp" d="M2 6H1V7V8V9H2H3V8H2V7V6Z" fill="#3B0000"/>
+<path id="body" fill-rule="evenodd" clip-rule="evenodd" d="M12 4H11V3H5V4H4V5H3V9H4V11H12V9H13V5H12V4ZM9 8H11V6H9V8ZM5 8H7V6H5V8Z" fill="#3B0000"/>
+<path id="LeftLegDown" d="M7 11V12V13V14H6V13V12V11H7Z" fill="#3B0000"/>
+<path id="LeftLegUp" d="M7 10V11V12V13H6V12V11V10H7Z" fill="#3B0000"/>
+<path id="RightLegDown" d="M10 11V12V13V14H9V13V12V11H10Z" fill="#3B0000"/>
+<path id="RightLegUp" d="M10 10V11V12V13H9V12V11V10H10Z" fill="#3B0000"/>
+<path id="RightHandUp" d="M15 7V6H14V7V8H13V9H14H15V8V7Z" fill="#3B0000"/>
+<path id="RightHandDown" d="M14 8H13V9V10V11V12H14V11V10V9V8Z" fill="#3B0000"/>
+<path id="LeftHandDown" d="M3 8H2V9V10V11V12H3V11V10V9V8Z" fill="#3B0000"/>
+<g id="EyesLeftDown">
+<path d="M10 7H9V8H10V7Z" fill="#3B0000"/>
+<path d="M6 7H5V8H6V7Z" fill="#3B0000"/>
+</g>
+<g id="EyesLeftUp">
+<path d="M10 6H9V7H10V6Z" fill="#3B0000"/>
+<path d="M6 6H5V7H6V6Z" fill="#3B0000"/>
+</g>
+<g id="EyesRightDown">
+<path d="M11 7H10V8H11V7Z" fill="#3B0000"/>
+<path d="M7 7H6V8H7V7Z" fill="#3B0000"/>
+</g>
+<g id="EyesRightUp">
+<path d="M11 6H10V7H11V6Z" fill="#3B0000"/>
+<path d="M7 6H6V7H7V6Z" fill="#3B0000"/>
+</g>
+</g>
+</svg>
