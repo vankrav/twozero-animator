@@ -1392,7 +1392,9 @@ function openExport() {
 
   if (tab === "svg") {
     const svg = clipToSVG(c, state.alpha);
-    pane.append(mk('<p>Один самодостаточный файл со SMIL-анимацией клипа <b>' + state.clip + '</b>. Работает в <b>&lt;img&gt;</b>, в CSS-фоне и просто в браузере.</p>'));
+    pane.append(mk('<p>Один самодостаточный файл со SMIL-анимацией клипа <b>' + state.clip + '</b>. '
+      + 'Работает в <b>&lt;img&gt;</b>, в CSS-фоне и просто в браузере. '
+      + 'Примеры вставки на страницу — <a href="demo/" target="_blank" style="color:var(--bone)">в демо</a>.</p>'));
     const prev = document.createElement("div"); prev.className = "preview";
     const img = document.createElement("img");
     img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
@@ -1401,6 +1403,9 @@ function openExport() {
     actions([
       ["Скачать .svg", () => download("twozero-" + state.clip + ".svg", svg, "image/svg+xml"), true],
       ["Скопировать", () => copy(svg)],
+      // encodeURIComponent экранирует кавычки — data-URI можно смело класть в атрибут
+      ["Скопировать готовый <img>", () => copy('<img src="data:image/svg+xml;charset=utf-8,'
+        + encodeURIComponent(svg) + '" width="128" height="128" alt="TWOZERO">')],
       ["Все клипы — " + Object.keys(state.clips).length + " файл(ов)", () => {
         // браузер может спросить разрешение на пакетную загрузку — это нормально
         Object.keys(state.clips).forEach((name, i) => setTimeout(

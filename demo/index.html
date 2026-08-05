@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TWOZERO на сайте — как встроить</title>
+<style>
+:root{
+  --void:#120101; --pit:#1D0303; --blood:#3B0000; --rust:#5A1010;
+  --siren:#DB0000; --bone:#F6EAE6; --dust:#A87873;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--void);color:var(--bone);
+  font-family:var(--mono);font-size:13px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:920px;margin:0 auto;padding:40px 20px 72px}
+
+header{border-bottom:1px solid var(--blood);padding-bottom:28px;margin-bottom:36px}
+h1{
+  font-family:var(--sans);font-weight:800;font-size:34px;letter-spacing:-.035em;
+  margin:0 0 6px;line-height:1.05;
+}
+.sub{color:var(--siren);font-size:10px;letter-spacing:.34em;text-transform:uppercase;margin-bottom:20px}
+.lede{color:var(--dust);max-width:62ch;margin:0}
+.lede a, footer a{color:var(--bone)}
+
+table{border-collapse:collapse;width:100%;margin:26px 0 0;font-size:12px}
+th,td{text-align:left;padding:8px 12px 8px 0;border-bottom:1px solid var(--blood);vertical-align:top}
+th{color:var(--dust);font-weight:400;font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+td b{font-weight:400;color:var(--bone)}
+
+section{margin:48px 0 0;border-top:1px solid var(--blood);padding-top:26px}
+h2{font-family:var(--sans);font-size:19px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+.tag{
+  display:inline-block;color:var(--siren);border:1px solid var(--rust);
+  font-size:9px;letter-spacing:.16em;text-transform:uppercase;padding:2px 7px;margin-left:8px;
+  vertical-align:3px;
+}
+.note{color:var(--dust);margin:0 0 20px;max-width:66ch}
+.note b{color:var(--bone);font-weight:400}
+
+.split{display:grid;grid-template-columns:168px minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:640px){ .split{grid-template-columns:minmax(0,1fr)} }
+/* шахматка сразу говорит «фон прозрачный» и даёт тёмному спрайту контраст */
+.stageBox{
+  border:1px solid var(--blood);
+  display:grid;place-items:center;padding:18px;min-height:168px;
+  background:
+    linear-gradient(45deg,#E2D2CE 25%,transparent 25%,transparent 75%,#E2D2CE 75%),
+    linear-gradient(45deg,#E2D2CE 25%,transparent 25%,transparent 75%,#E2D2CE 75%) 10px 10px,
+    #F6EAE6;
+  background-size:20px 20px;
+}
+.stageBox.light{background:#F6EAE6}
+.cap{color:var(--dust);font-size:10px;letter-spacing:.1em;text-align:center;margin-top:8px}
+
+pre{
+  margin:0;padding:14px 16px;overflow-x:auto;
+  background:#0C0000;border:1px solid var(--blood);
+  font-size:12px;line-height:1.6;
+}
+pre code{color:var(--bone)}
+.c-tag{color:#FF6A5A}
+.c-atr{color:var(--dust)}
+.c-str{color:#FFB4A8}
+.c-com{color:#7A4A46}
+.c-key{color:#FF6A5A}
+
+/* ── живые примеры ── */
+.pixel{image-rendering:pixelated;image-rendering:crisp-edges}
+
+.sheet{
+  width:128px;height:128px;
+  background-image:url("assets/run-sheet.png");
+  background-repeat:no-repeat;
+  background-size:512px 128px;
+  image-rendering:pixelated;
+  animation:run-cycle .333s steps(4) infinite;
+}
+@keyframes run-cycle{ to{ background-position:-512px 0 } }
+
+.bgSprite{
+  width:128px;height:128px;
+  background:url("assets/idle.svg") center/contain no-repeat;
+}
+
+footer{margin-top:56px;border-top:1px solid var(--blood);padding-top:20px;color:var(--dust);font-size:11px}
+@media (prefers-reduced-motion:reduce){ .sheet{animation:none} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="sub">twozero animator</div>
+  <h1>Как встроить персонажа на сайт</h1>
+  <p class="lede">
+    Всё ниже — файлы из кнопки <b>Export</b> в <a href="../">редакторе</a>.
+    Каждый пример живой: слева работает прямо на этой странице, справа — код,
+    который надо скопировать. Ничего собирать не нужно.
+  </p>
+
+  <table>
+    <tr><th>Способ</th><th>Файлов</th><th>Когда брать</th></tr>
+    <tr>
+      <td><b>SVG</b></td><td>1</td>
+      <td>По умолчанию. Легче всех, масштабируется без потерь, зацикливается сам.</td>
+    </tr>
+    <tr>
+      <td><b>GIF</b></td><td>1</td>
+      <td>Куда SVG не пускают: письма, Telegram, чужие CMS.</td>
+    </tr>
+    <tr>
+      <td><b>PNG-лист + CSS</b></td><td>1</td>
+      <td>Нужно управлять анимацией из CSS: пауза, скорость, запуск по <code>:hover</code>.</td>
+    </tr>
+    <tr>
+      <td><b>JS-модуль</b></td><td>1</td>
+      <td>Нужно менять анимацию из кода: реакция на действия, смена клипов.</td>
+    </tr>
+  </table>
+</header>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>Анимированный SVG<span class="tag">проще некуда</span></h2>
+  <p class="note">
+    Одна строка. Файл самодостаточный: анимация внутри него, зацикливается сама,
+    JS не нужен. Масштабируется без потерь — <b>image-rendering не нужен</b>,
+    в экспорте уже стоит <code>shape-rendering="crispEdges"</code>.
+  </p>
+  <div class="split">
+    <div>
+      <div class="stageBox"><img src="assets/run.svg" width="128" height="128" alt="TWOZERO бежит"></div>
+      <div class="cap">run.svg · 4.5 КБ</div>
+    </div>
+<pre><code><span class="c-tag">&lt;img</span> <span class="c-atr">src</span>=<span class="c-str">"run.svg"</span> <span class="c-atr">width</span>=<span class="c-str">"128"</span> <span class="c-atr">alt</span>=<span class="c-str">"TWOZERO"</span><span class="c-tag">&gt;</span></code></pre>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>Тот же SVG фоном<span class="tag">без лишнего тега</span></h2>
+  <p class="note">
+    Если персонаж — украшение, а не содержимое, ему не место в <code>&lt;img&gt;</code>.
+    Фон не читается скринридером и не мешает разметке.
+  </p>
+  <div class="split">
+    <div>
+      <div class="stageBox light"><div class="bgSprite"></div></div>
+      <div class="cap">на светлом фоне страницы</div>
+    </div>
+<pre><code><span class="c-key">.mascot</span> {
+  <span class="c-atr">width</span>: 128px;
+  <span class="c-atr">height</span>: 128px;
+  <span class="c-atr">background</span>: <span class="c-str">url("idle.svg")</span> center/contain no-repeat;
+}</code></pre>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>GIF<span class="tag">куда угодно</span></h2>
+  <p class="note">
+    Экспорт уже отдан в 8× (128×128). Хочешь крупнее — обязательно
+    <b>image-rendering: pixelated</b>, иначе браузер размоет пиксели.
+  </p>
+  <div class="split">
+    <div>
+      <div class="stageBox">
+        <img class="pixel" src="assets/run.gif" width="128" height="128" alt="TWOZERO бежит">
+      </div>
+      <div class="cap">run.gif · 2.2 КБ</div>
+    </div>
+<pre><code><span class="c-tag">&lt;img</span> <span class="c-atr">src</span>=<span class="c-str">"run.gif"</span> <span class="c-atr">width</span>=<span class="c-str">"128"</span>
+     <span class="c-atr">style</span>=<span class="c-str">"image-rendering: pixelated"</span> <span class="c-atr">alt</span>=<span class="c-str">"TWOZERO"</span><span class="c-tag">&gt;</span></code></pre>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>PNG-лист и CSS steps()<span class="tag">анимация из css</span></h2>
+  <p class="note">
+    Кадры лежат в ряд одной картинкой, а <code>steps()</code> двигает фон рывками —
+    ровно по кадру. Лист 1× весит <b>206 байт</b>, размер задаётся через
+    <code>background-size</code>.
+  </p>
+  <p class="note">
+    Числа берутся из клипа: <b>4 кадра</b>, <b>12 fps</b> → цикл <b>0.333s</b>,
+    ширина фона — 4 × 128 = <b>512px</b>. Способ требует, чтобы у всех кадров была
+    одинаковая длительность: <code>steps()</code> не умеет держать один кадр дольше
+    других. У <code>run</code> и <code>walk</code> так и есть, у <code>idle</code> — нет.
+  </p>
+  <div class="split">
+    <div>
+      <div class="stageBox"><div class="sheet"></div></div>
+      <div class="cap">run-sheet.png · 206 Б</div>
+    </div>
+<pre><code><span class="c-key">.run</span> {
+  <span class="c-atr">width</span>: 128px;
+  <span class="c-atr">height</span>: 128px;
+  <span class="c-atr">background</span>: <span class="c-str">url("run-sheet.png")</span> no-repeat;
+  <span class="c-atr">background-size</span>: 512px 128px;   <span class="c-com">/* 4 кадра × 128 */</span>
+  <span class="c-atr">image-rendering</span>: pixelated;
+  <span class="c-atr">animation</span>: run-cycle .333s steps(4) infinite;
+}
+<span class="c-key">@keyframes</span> run-cycle {
+  <span class="c-atr">to</span> { <span class="c-atr">background-position</span>: -512px 0 }
+}</code></pre>
+  </div>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>JS-модуль<span class="tag">наведи на него мышь</span></h2>
+  <p class="note">
+    <code>twozero-sprite.js</code> — 9 КБ, без зависимостей: внутри геометрия спрайта
+    и все клипы. Даёт менять анимацию на лету. <b>Наведи мышь на персонажа справа</b> —
+    он переключится с <code>idle</code> на <code>windmill</code>.
+  </p>
+  <div class="split">
+    <div>
+      <div class="stageBox light"><canvas id="hero" width="128" height="128"></canvas></div>
+      <div class="cap">idle ⇄ windmill по наведению</div>
+    </div>
+<pre><code><span class="c-tag">&lt;canvas</span> <span class="c-atr">id</span>=<span class="c-str">"hero"</span> <span class="c-atr">width</span>=<span class="c-str">"128"</span> <span class="c-atr">height</span>=<span class="c-str">"128"</span><span class="c-tag">&gt;&lt;/canvas&gt;</span>
+<span class="c-tag">&lt;script</span> <span class="c-atr">src</span>=<span class="c-str">"twozero-sprite.js"</span><span class="c-tag">&gt;&lt;/script&gt;</span>
+<span class="c-tag">&lt;script&gt;</span>
+  <span class="c-com">// alpha — прозрачный фон, fg — свой цвет спрайта</span>
+  <span class="c-key">const</span> cv = document.getElementById(<span class="c-str">'hero'</span>);
+  <span class="c-key">const</span> a  = <span class="c-key">new</span> TWOZERO.Animator(cv, <span class="c-str">'idle'</span>, {
+    alpha: <span class="c-key">true</span>, fg: <span class="c-str">'#3B0000'</span>
+  }).start();
+
+  cv.onmouseenter = () =&gt; a.set(<span class="c-str">'windmill'</span>);
+  cv.onmouseleave = () =&gt; a.set(<span class="c-str">'idle'</span>);
+<span class="c-tag">&lt;/script&gt;</span></code></pre>
+  </div>
+  <p class="note" style="margin-top:20px">
+    Доступные клипы — <code>TWOZERO.clips</code>. Ещё есть <code>a.stop()</code>,
+    <code>TWOZERO.cells(pose)</code> (список закрашенных клеток) и
+    <code>TWOZERO.draw(ctx, pose, scale, opts)</code>, если хочется рисовать самому.
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────── -->
+<section>
+  <h2>Что легко упустить</h2>
+  <table>
+    <tr>
+      <td style="width:230px"><b>image-rendering: pixelated</b></td>
+      <td>Нужен растру — GIF и PNG. Без него браузер размывает пиксели при увеличении.
+          SVG в этом не нуждается: он векторный.</td>
+    </tr>
+    <tr>
+      <td><b>Прозрачный фон</b></td>
+      <td>Тумблер <code>alpha bg</code> на сцене редактора. Без него в экспорт
+          уезжает красный квадрат — на чужом фоне это заметно.</td>
+    </tr>
+    <tr>
+      <td><b>Целое число пикселей</b></td>
+      <td>Размер кратный 16 (128, 160, 256) — спрайт ложится ровно.
+          На 150px пиксели поедут неравномерно.</td>
+    </tr>
+    <tr>
+      <td><b>steps() и длительности</b></td>
+      <td>CSS-способ требует одинаковой длительности у всех кадров.
+          Для клипов с разными <code>hold</code> берите SVG или GIF.</td>
+    </tr>
+  </table>
+</section>
+
+<footer>
+  <a href="../">← вернуться в редактор</a> ·
+  <a href="https://github.com/vankrav/twozero-animator">исходники на GitHub</a>
+</footer>
+
+</div>
+
+<script src="../twozero-sprite.js"></script>
+<script>
+  const cv = document.getElementById('hero');
+  const a = new TWOZERO.Animator(cv, 'idle', { alpha: true, fg: '#3B0000' }).start();
+  cv.onmouseenter = () => a.set('windmill');
+  cv.onmouseleave = () => a.set('idle');
+</script>
+</body>
+</html>
