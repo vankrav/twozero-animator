@@ -1,7 +1,11 @@
 # TWOZERO Animator
 
 Редактор покадровой анимации для пиксельного персонажа TWOZERO (16×16).
-Один HTML-файл, без сборки и зависимостей — открывается двойным кликом.
+Один HTML-файл, без сборки и зависимостей.
+
+**→ [vankrav.github.io/twozero-animator](https://vankrav.github.io/twozero-animator/)**
+
+Локально — просто открыть файл, интернет не нужен:
 
 ```
 open index.html
